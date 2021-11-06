@@ -1,36 +1,19 @@
-use crate::model::model::{DataValue, DataType, Field, DataProvider, FieldType};
-use crate::model::colors::Color;
-use std::collections::{HashMap, HashSet};
+use crate::model::model::{Field, FieldType, DataType, DataValue, DataError};
+use std::collections::HashSet;
+use crate::image::ImageView;
 
 pub const COUNTER_TYPE: FieldType = FieldType(0b_111_010_111);
-
-
-pub(crate) struct CounterDataValue {
-    value: i32,
-}
-
-impl DataValue for CounterDataValue {
-    fn get_type_name(&self) -> String {
-        String::from("int")
-    }
-
-    fn to_json(&self) -> String {
-        format!("{}", self.value)
-    }
-}
 
 pub(crate) struct CounterDataType;
 
 impl DataType for CounterDataType {
-    fn parse(&self, field: &Field, data_provider: &dyn DataProvider) -> Option<Box<dyn DataValue>> {
-        if field.field_type != COUNTER_TYPE { return None; }
 
-        let image = data_provider.load(&field.data_start, &field.data_end);
+    fn read(&self, image: &ImageView, _: &Field) -> Result<DataValue, DataError> {
         let mut used_pixels: HashSet<(u32, u32)> = HashSet::new();
         let mut domains_found = 0;
 
-        for y in 0..image.height() {
-            for x in 0..image.width() {
+        for y in 0..image.height {
+            for x in 0..image.width {
                 if image.get_pixel(x, y).is_data() && !used_pixels.contains(&(x, y)) {
                     let mut pixels_to_check: Vec<(u32, u32)> = vec![(x,y)];
 
@@ -44,13 +27,12 @@ impl DataType for CounterDataType {
                         pixels_to_check.push((x, y+1));
                         pixels_to_check.push((x, y-1));
                     }
-                    domains_found += 1
+                    domains_found += 1;
                 }
             }
         }
-        return Some(Box::from(CounterDataValue {
-            value: domains_found
-        }));
+        Ok(DataValue::Int {value: domains_found})
     }
+
 }
 

@@ -10,6 +10,7 @@
       <sourceFolder url="file://$MODULE_DIR$/src/commandline/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/web-server/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/static" type="java-resource" />
+      <sourceFolder url="file://$MODULE_DIR$/web-client/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/src/backend/target" />
       <excludeFolder url="file://$MODULE_DIR$/src/commandline/target" />

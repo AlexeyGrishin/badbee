@@ -1,7 +1,7 @@
-use image::{DynamicImage, GenericImageView, Rgba};
-use crate::model::model::{DataImage, MutDataImage};
+use image::{DynamicImage, GenericImageView};
 use std::collections::HashMap;
-use crate::model::colors::Color;
+use crate::image::{ImageView};
+use crate::model::colors::RGB;
 
 
 pub struct BitmapFont {
@@ -36,8 +36,9 @@ impl BitmapFont {
                 let mut key: u32 = 0;
                 for xx in x..x + self.char_dimensions.0 {
                     for yy in y..y + self.char_dimensions.1 {
-                        key = (key << 1);
-                        if !self.image.get_pixel(xx, yy).is_blank() {
+                        key = key << 1;
+                        let pix: RGB = self.image.get_pixel(xx, yy).into();
+                        if !pix.is_blank() {
                             key = key | 1;
                         }
                     }
@@ -51,11 +52,11 @@ impl BitmapFont {
         }
     }
 
-    pub fn get_char(&self, image: &dyn DataImage, x: u32, y: u32) -> Option<char> {
+    pub fn get_char(&self, image: &ImageView, x: u32, y: u32) -> Option<char> {
         let mut key: u32 = 0;
         for xx in x..x + self.char_dimensions.0 {
             for yy in y..y + self.char_dimensions.1 {
-                key = (key << 1);
+                key = key << 1;
                 if !image.get_pixel(xx, yy).is_blank() {
                     key = key | 1;
                 }
@@ -64,7 +65,7 @@ impl BitmapFont {
         self.mapping.get(&key).map(|c| *c)
     }
 
-    pub fn put_string(&self, image: &mut dyn MutDataImage, x: u32, y: u32, str: &str) {
+    pub fn put_string(&self, image: &mut ImageView, x: u32, y: u32, str: &str) {
         let mut cx = x;
         for chr in str.chars() {
             if let Some(idc) = self.chars_to_idx.get(&chr) {
@@ -72,7 +73,10 @@ impl BitmapFont {
                 let font_x = char_idx * self.char_dimensions.0 + (char_idx * self.spacing);
                 for dx in 0..self.char_dimensions.0 {
                     for dy in 0..self.char_dimensions.1 {
-                        image.set_pixel(cx + dx, y + dy, &self.image.get_pixel(font_x + dx, dy));
+                        if let Result::Err(_) = image.set_pixel(cx + dx, y + dy, self.image.get_pixel(font_x + dx, dy)) {
+                            log::error!("Cannot put string {} at {},{}: too long", str, x, y);
+                            break //todo: return error
+                        }
                     }
                 }
             }

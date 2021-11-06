@@ -1,32 +1,40 @@
-use badbee_backend::{get_name, DB};
 use std::thread::sleep;
 use std::time::Duration;
 use badbee_backend::io::bitmap_font::BitmapFont;
+use badbee_backend::io::image_io::load_image;
+use badbee_backend::image::{ImageView, StorableImage};
+use badbee_backend::model::async_model_reader::load_model_into;
+use std::io::{Seek, SeekFrom, Read};
+use std::os::windows::fs::{FileExt, MetadataExt};
+use byteorder::{LittleEndian, ReadBytesExt};
+use std::ops::Div;
+use badbee_backend::model::model::{Model, DataValue};
+use badbee_backend::db::{DBHandle, DBQuery};
 
-fn main() {
-    println!("Hello, {}!", get_name());
+#[tokio::main]
+async fn main() {
+    let handle = DBHandle::run_in_background("db2.png");
 
-    let font = BitmapFont::open3x5("font1.png", "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_+-*");
-
-    let mut db = DB::open("db1.png");
-
-    loop {
-        db.sync();
-        let count = db.get_records_count();
-        println!("Count = {}", count);
-        for i in 0..count {
-            let rec = db.get_record(i).unwrap();
-            println!("REC #{:?}", rec.id);
-
-            for field in &rec.fields {
-                println!(" Type = \"{}\" Value = {}", field.value.get_type_name(), field.value.to_json());
-                if field.reference != None {
-                    println!("  References to #{:?}", field.reference.unwrap())
-                }
-            }
+    let mut query = DBQuery::new();//.limit(1).build();//.limit(2);
+    let model = handle.get_model().await.unwrap();
+    for rec in &model.records {
+        println!("RECORD {:?}", rec.position);
+        for f in &rec.fields {
+            println!("FIELD {:?} {:?} {:?}", f.field_type, f.data_start, f.ref_to_record)
         }
-        break
-        sleep(Duration::from_secs(5))
-
     }
+    println!();
+    let records = handle.get_records(query.clone()).await.unwrap();
+    //handle.set_field(records[0].id.x, records[0].id.y, 1, DataValue::Boolean { value: true}).await;
+    //handle.sync().await;
+    //let records = handle.get_records(query.clone()).await;
+    for rec in &records {
+        println!("RECORD {:?}", rec.id);
+        for field in &rec.fields {
+            println!("  FIELD {:?} ref={:?}", field.value, field.reference)
+        }
+    }
+
+
 }
+

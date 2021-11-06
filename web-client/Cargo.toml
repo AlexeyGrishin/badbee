@@ -1,0 +1,18 @@
+[package]
+name = "web-client"
+version = "0.1.0"
+edition = "2018"
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+sauron = { version = "0.43"}#, features = ["RequestInit"] }
+serde_json = "1.0.68"
+serde_derive = "1.0"
+serde = "1.0"
+log = "0.4"
+console_log = {version="0.2", features = ["color"]}
+console_error_panic_hook = { version = "0.1" }

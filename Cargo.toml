@@ -4,5 +4,5 @@
 #edition = "2018"
 
 [workspace]
-members = ["backend", "command-line", "web-server"]
+members = ["backend", "web-server"]
 

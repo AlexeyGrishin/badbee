@@ -1,126 +1,124 @@
+mod json;
+mod handlers;
+
 use warp::{Filter};
-use badbee_backend::{DB, DataRecord, DataFieldValue};
-use badbee_backend::model::model::Vector;
 use std::collections::HashMap;
-use warp::reply::{json, Json, Reply, Response};
-use maplit::hashmap;
-use std::sync::{Arc, Mutex};
-use serde_json::{json, Value};
-use std::thread::sleep;
+use serde_derive::Deserialize;
 use std::time::Duration;
+use badbee_backend::db::DBHandle;
+use crate::handlers::{get_records_handler, put_field_handler, get_model_handler, clone_record_handler, get_dbs_handler};
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio::signal;
 
-/*
+pub type DBMAP = Arc<Mutex<HashMap<String, DBHandle>>>;
 
-GET /:db/records.[json|html][?q]
-
-q =
-
-    x=1&y=2
-
-    col=1&cols=5  (col 1/5)
-
-    type=x&value=y
-
-    ?include_references
-
-PATCH /:db/records/x/y/0 {type: "", value: ""}
-
-
- */
-
-fn get_all_records(db: &DB) -> Vec<DataRecord> { db.get_records() }
-
-fn vec2id(vector: Vector) -> String {
-    format!("{}/{}", vector.x, vector.y)
-}
-
-fn get_records_json(records: Vec<DataRecord>) -> warp::http::Response<String> {
-    let mut out = String::new();
-    out.push_str("[");
-    let mut ocomma = false;
-    for rec in records.iter() {
-        if ocomma { out.push_str(",")}
-        out.push_str("{");
-        out.push_str(&format!("\"id\": \"{}\", \"column\": \"{}\", \"fields\": [", vec2id(rec.id), rec.column));
-        let mut comma = false;
-        for field in rec.fields.iter() {
-            if comma { out.push_str(",")}
-            out.push_str("{");
-            out.push_str(&format!("\"type\": \"{}\", \"value\": {}", field.value.get_type_name(), field.value.to_json()));
-            if let Some(v) = field.reference {
-                out.push_str(&format!(", \"reference\": \"{}\"", vec2id(v)))
-            }
-            out.push_str("}");
-            comma = true
-        }
-        out.push_str("]}");
-        ocomma = true
-    }
-    out.push_str("]");
-    return warp::http::Response::builder()
-        .header("Content-Type", "application/json")
-        .body(out)
-        .unwrap()
-
+#[derive(Deserialize)]
+pub struct RecordsQuery {
+    offset: Option<u32>,
+    limit: Option<u32>,
+    column: Option<String>,
+    ids: Option<String>,
+    //comma-separated
+    embed_refs: Option<bool>,
 }
 
 #[tokio::main]
 async fn main() {
-    let mut dbs = HashMap::new();
-    dbs.insert("adtt", Arc::new(Mutex::new(DB::open("db2.png"))));      //todo: why Arc, Mutex?
-    dbs.insert("example", Arc::new(Mutex::new(DB::open("db1.png"))));
+    stderrlog::new().verbosity(2).init().unwrap();
+
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+
+    let dbs: DBMAP = Arc::new(Mutex::new(HashMap::new()));
+
+    match std::env::var("DB_FILE") {
+        Ok(value) => {
+            log::info!("Load db specified in DB_NAME env var ({})", value.clone());
+            dbs.lock().await.insert(value.clone(), DBHandle::run_in_background(format!("db/{}", value).as_str()));
+        }
+        Err(_) => {
+            log::info!("Load default dbs");
+            dbs.lock().await.insert("husky".to_string(), DBHandle::run_in_background("db/husky.png"));
+            dbs.lock().await.insert("husky_big.png".to_string(), DBHandle::run_in_background("db/husky_big.png"));
+            dbs.lock().await.insert("husky_bigger.png".to_string(), DBHandle::run_in_background("db/husky_bigger.png"));
+            dbs.lock().await.insert("husky_bigger.bmp".to_string(), DBHandle::run_in_background("db/husky_bigger.bmp"));
+        }
+    }
 
     let sync_dbs = dbs.clone();
+    let shutdown_dbs = dbs.clone();
 
-    let do_sync_all = move || {
+    let periodical_sync = tokio::spawn(async move {
         loop {
-            for (_, mut v) in &sync_dbs {
-                v.lock().unwrap().sync();
+            for (_, v) in sync_dbs.lock().await.iter() {
+                v.sync().await;
             }
-            sleep(Duration::from_secs(5))
+            tokio::time::sleep(Duration::from_secs(10)).await;
         }
-    };
-    std::thread::spawn(do_sync_all);
+    });
 
 
-
-    fn with_dbs(dbs: HashMap<&str, Arc<Mutex<DB>>>) -> impl Filter<Extract=(HashMap<&str, Arc<Mutex<DB>>>, ), Error=std::convert::Infallible> + Clone {
+    fn with_dbs(dbs: DBMAP) -> impl Filter<Extract=(DBMAP, ), Error=std::convert::Infallible> + Clone {
         warp::any().map(move || dbs.clone())
     }
 
     let with_dbs_filter = with_dbs(dbs);
 
-    let get_records = warp::path!(String / "records.json")
+    let get_dbs = warp::path!("dbs.json")
         .and(with_dbs_filter.clone())
-        .map(|dbname: String, dbs: HashMap<&str, Arc<Mutex<DB>>>| {
-            let db = &dbs[dbname.as_str()];
-            let response = get_records_json(get_all_records(&db.lock().unwrap()));
-            Ok(response)
-        });
+        .and_then(get_dbs_handler);
+
+    let get_records = warp::path!(String / "records.json")
+        .and(warp::query())
+        .and(with_dbs_filter.clone())
+        .and_then(get_records_handler);
+
+    let get_model = warp::path!(String / "model.json")
+        .and(with_dbs_filter.clone())
+        .and_then(get_model_handler);
 
     let put_field = warp::put()
         .and(warp::path!(String / "records" / u32 / u32 / u32))
         .and(with_dbs_filter.clone())
         .and(warp::body::json())
-        .map(|dbname: String, x: u32, y: u32, fi: u32, dbs: HashMap<&str, Arc<Mutex<DB>>>, json: Value| {
-            if let Value::Object(obj) = json {
-                let db = &dbs[dbname.as_str()];
-                println!("{} {} {}", x, y, fi);
-                println!("{}", obj["value"]);
-                let db = &mut db.lock().unwrap();
+        .and_then(put_field_handler)
+        ;
 
-                db.put_value(Vector { x, y }, fi, &obj["value"])
+    let clone_record = warp::post()
+        .and(warp::path!(String / "records" / u32 / u32 / "clone"))
+        .and(with_dbs_filter.clone())
+        .and_then(clone_record_handler);
 
-            }
-            Ok("Ok")
-        })
-    ;
+    let cors = warp::cors()
+        .allow_any_origin()
+        .allow_headers(vec!["User-Agent", "Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", "Content-Type"])
+        .allow_methods(vec!["POST", "GET", "PUT", "PATCH", "DELETE"])
+        .build();
 
+    let routes = get_dbs
+        .or(get_records)
+        .or(put_field)
+        .or(get_model)
+        .or(clone_record);
+    let static_files = warp::get().and(warp::fs::dir("static"));
 
-    let routes = get_records.or(put_field);
-    let static_files = warp::get().and(warp::path::end()).and(warp::fs::dir("static"));
-    warp::serve(routes.or(static_files))
-        .run(([127, 0, 0, 1], 3030))
-        .await;
+    let (_, server) = warp::serve(routes.or(static_files).with(cors))
+        .bind_with_graceful_shutdown(([0, 0, 0, 0], 3030), async { shutdown_rx.await.ok(); });
+
+    tokio::task::spawn(server);
+    log::info!("Listen to 0.0.0.0:3030. Waiting for ctrl-c");
+    signal::ctrl_c().await.expect("failed to listen for event");
+    log::info!("received ctrl-c event");
+
+    shutdown_tx.send(()).unwrap();
+    log::info!("stopped web");
+    periodical_sync.abort();
+    log::info!("stopped periodical");
+    for db_handle in shutdown_dbs.lock().await.values() {
+        db_handle.sync().await;
+        db_handle.shutdown();
+    }
+    log::info!("stopped dbs");
+
 
 }

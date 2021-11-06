@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+
+<style>
+    table td, table th {
+        border: 1px gray solid;
+        padding: 4px;
+    }
+
+    table th input {
+        width: 120px;
+        border: 1px #eee solid;
+    }
+
+    table th img {
+        float: left;
+    }
+
+    table td label {
+        display: block;
+        margin-bottom: 15px;
+    }
+
+    table td label input {
+        background: #eeeeee;
+        border: none;
+    }
+
+    table td label input:not([value="00:00"]) {
+        color: #03344c;
+        background: #dbdfff;
+    }
+
+    table td label.empty, table td label.empty input {
+        color: #858585;
+    }
+</style>
+<main>
+
+    <h3>actiPLANS</h3>
+
+
+    <table>
+
+    </table>
+
+
+</main>
+
+<script>
+
+    let table = document.querySelector("table");
+
+    let leaveTypes = []
+    let date = new Date()
+
+    function doLoad(json) {
+        leaveTypes = json.filter(r => r.column === "#00FF00").map(it => ({
+            color: it.fields[0].value,
+            name: it.fields[1].value.toLowerCase()
+        }))
+        console.log(leaveTypes)
+        date = new Date(Date.parse(json.find(r => r.column === "#000000").fields[0].value));
+        console.log(date)
+        let ttRecords = json.filter(r => r.column === "#FFFF00")
+
+        const days = 14;
+        let dates = []
+        for (let i = 0; i < days; i++) {
+            let d = new Date(date.getTime());
+            d.setDate(d.getDate() + i)
+            dates.push(d)
+        }
+        let header = `<tr>
+    <th>User / Date</th>
+    ${dates.map(d => `<td>${d.toString().substr(0, 10)}</td>`).join("")}
+</tr>
+        `
+        let body = ``
+        for (let tt of ttRecords) {
+            let userRec = json.find(r => r.id === tt.fields[0].reference)
+            let user = `<tr>
+            <th>
+                <img src="${userRec.fields[1].value.data_url}">
+                        <input type="text" value="${userRec.fields[0].value}" maxlength="16" data-rec-id="${userRec.id}" data-field-id="0" data-type="string">
+                        <p>${userRec.fields[2].value} sick days remaining</p>
+
+             </th>`
+            for (let i = 0; i < days; i++) {
+                user += `<td>`
+                for (let lt of leaveTypes) {
+                    let percentage = tt.fields[i + 1].value[lt.color] || 0
+                    let time = percentage * 8
+                    let hours = time | 0
+                    let minutes = ((time - hours) * 60) | 0
+                    user += `<label class="${time ? '' : 'empty'}">${lt.name} <input name="${lt.color}" type="time" value="${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}" data-rec-id="${tt.id}" data-field-id="${i + 1}" data-type="pie"> </label>`
+                }
+
+                user += `</td>`
+            }
+
+            user += `</tr>`
+
+            body += user
+        }
+
+
+        table.innerHTML = header + body
+        //todo: for each user - render img, render input field for name, for each cell - leave types with time counters
+
+    }
+
+    document.addEventListener("change", (e) => {
+        let recId = e.target.getAttribute("data-rec-id");
+        let fieldId = e.target.getAttribute("data-field-id");
+        switch (e.target.getAttribute("data-type")) {
+            case "string":
+                fetch(`/adtt/records/${recId}/${fieldId}`, {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        value: e.target.value
+                    })
+                }).then(r => reload())
+                break;
+            case "pie":
+                let allInputs = [].slice.call(document.querySelectorAll(`[data-rec-id="${recId}"][data-field-id="${fieldId}"]`))
+                let sum = 0
+                let allHours = {}
+                allInputs.map(i => ({color: i.name, value: i.value})).map(cv => {
+                    let hm = cv.value
+                    hm = hm.split(":")
+                    let hours = parseInt(hm[0]) + parseFloat(hm[1])/60.0
+                    sum += hours
+                    allHours[cv.color] = hours
+                })
+                if (sum > 8) {
+                    let delta = sum - 8
+                    for (let k of Object.keys(allHours)) {
+                        if (k === e.target.name) continue
+                        if (allHours[k] > delta) {
+                            allHours[k] -= delta; break;
+                        }
+                    }
+                }
+                for (let k of Object.keys(allHours)) {
+                    allHours[k] = allHours[k] / 8
+                }
+                fetch(`/adtt/records/${recId}/${fieldId}`, {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        value: allHours
+                    })
+                }).then(r => reload())
+                break;
+        }
+    })
+
+    function reload() {
+        fetch("/adtt/records.json")
+            .then(r => r.json())
+            .then(j => doLoad(j))
+    }
+
+    reload();
+</script>
