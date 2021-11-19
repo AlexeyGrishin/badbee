@@ -50,7 +50,7 @@ async fn main() {
             for (_, v) in sync_dbs.lock().await.iter() {
                 v.sync().await;
             }
-            tokio::time::sleep(Duration::from_secs(10)).await;
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
     });
 
