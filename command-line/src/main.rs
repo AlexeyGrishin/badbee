@@ -13,7 +13,7 @@ use badbee_backend::db::{DBHandle, DBQuery};
 
 #[tokio::main]
 async fn main() {
-    let handle = DBHandle::run_in_background("db2.png");
+    let handle = DBHandle::run_in_background("db.png");
 
     let mut query = DBQuery::new();//.limit(1).build();//.limit(2);
     let model = handle.get_model().await.unwrap();
