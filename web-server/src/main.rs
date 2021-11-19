@@ -37,11 +37,8 @@ async fn main() {
             dbs.lock().await.insert(value.clone(), DBHandle::run_in_background(format!("db/{}", value).as_str()));
         }
         Err(_) => {
-            log::info!("Load default dbs");
-            dbs.lock().await.insert("husky".to_string(), DBHandle::run_in_background("db/husky.png"));
-            dbs.lock().await.insert("husky_big.png".to_string(), DBHandle::run_in_background("db/husky_big.png"));
-            dbs.lock().await.insert("husky_bigger.png".to_string(), DBHandle::run_in_background("db/husky_bigger.png"));
-            dbs.lock().await.insert("husky_bigger.bmp".to_string(), DBHandle::run_in_background("db/husky_bigger.bmp"));
+            log::info!("Load default db");
+            dbs.lock().await.insert("db".to_string(), DBHandle::run_in_background("db/db.png"));
         }
     }
 

@@ -1,14 +1,15 @@
-mod dog_view;
 mod api;
-mod dog_model;
+mod record_view;
+mod field_view;
 
 use sauron::html::text;
 use sauron::prelude::*;
 use sauron::js_sys::TypeError;
 use sauron::{node, Cmd, Application, Node, Program};
-use crate::api::RecordsQuery;
-use crate::dog_view::dog_view;
-use crate::dog_model::DogModel;
+use crate::api::{Record, RecordsQuery};
+use record_view::record_view;
+use serde_json::json;
+
 
 #[derive(Debug)]
 pub enum Msg {
@@ -16,14 +17,13 @@ pub enum Msg {
     DBInfoLoaded(Result<api::Model, TypeError>),
     DBSelected(String),
     RecordsLoaded(Result<api::RecordsList, TypeError>),
-
-    DogRenamed { id: String, new_name: String },
-
     DBRecordPatched(Result<(), TypeError>),
 
     PrevPage, NextPage,
 
-    ToggleParents { id: String }
+    PatchRequested { id: String, fi: usize, new_value: serde_json::Value },
+
+    Noop
 }
 
 pub struct App {
@@ -33,10 +33,8 @@ pub struct App {
     total: u32,
     loading_time: u32,
 
-    records: Vec<DogModel>,
-    db_names: Vec<String>,
-
-    load_refs_requested_for: Option<String>
+    records: Vec<Record>,
+    db_names: Vec<String>
 }
 
 
@@ -49,13 +47,12 @@ impl App {
             total: 0,
             loading_time: 0,
             records: vec![],
-            db_names: vec![],
-            load_refs_requested_for: None
+            db_names: vec![]
         }
     }
 
     fn load_records(&mut self) -> Cmd<Self, Msg> {
-        self.fetch_records(&self.db_name.as_ref().unwrap(), RecordsQuery::column_subset("%23008000".to_string(), self.offset + 1, self.limit))
+        self.fetch_records(&self.db_name.as_ref().unwrap(), RecordsQuery::subset( self.offset, self.limit))
     }
 }
 
@@ -67,6 +64,7 @@ impl Application<Msg> for App {
 
     fn update(&mut self, msg: Msg) -> Cmd<Self, Msg> {
         match msg {
+            Msg::Noop => {},
             Msg::DBListLoaded(list) => {
                 //log::info!("{:?}", list);
                 self.db_names = list.unwrap();
@@ -74,9 +72,9 @@ impl Application<Msg> for App {
             }
             Msg::DBInfoLoaded(info) => {
                 let model = info.unwrap();
-                self.total = model.records - 2;
+                self.total = model.records;
                 self.offset = 0;
-                self.limit = 100;
+                self.limit = 30;
                 log::info!("Model {} loaded in {} ms", self.db_name.as_ref().unwrap(), model.loading_time);
                 self.loading_time = model.loading_time;
                 return self.load_records();
@@ -87,51 +85,21 @@ impl Application<Msg> for App {
             }
             Msg::RecordsLoaded(list) => {
                 //log::info!("{:?}", list);
-                let dogs = list.unwrap().iter().map(|r| DogModel::new_from_record(r)).collect();
-                if let Some(id) = &self.load_refs_requested_for {
-                    if let Some(dog) = self.records.iter_mut().find(|it| &it.id == id ) {
-                        dog.loaded_parents = dogs;
-                    }
-                    self.load_refs_requested_for = None;
-                } else {
-                    self.records = dogs;
-                }
+                self.records = list.unwrap()
             }
-            Msg::DogRenamed { id, new_name } => {
-                return self.patch_record(
-                    self.db_name.as_ref().unwrap(),
-                    id,
-                    DogModel::name_field_idx(),
-                    DogModel::name_field_value(&new_name)
-                );
-            },
             Msg::DBRecordPatched(_result) => {
                 //log::info!("{:?}", result);
             },
             Msg::NextPage => {
-                self.offset += 100;
+                self.offset += 30;
                 return self.load_records();
             },
             Msg::PrevPage => {
-                self.offset -= 100;
+                self.offset -= 30;
                 return self.load_records();
             },
-            Msg::ToggleParents { id } => {
-                if let Some(dog) = self.records.iter_mut().find(|it| it.id == id ) {
-                    dog.shown_parents = !dog.shown_parents;
-                    if dog.loaded_parents.is_empty() {
-                        self.load_refs_requested_for = Some(id);
-                        let mut ids: Vec<String> = vec![];
-                        if let Some(papa_id) = dog.papa_id.as_ref() {
-                            ids.push(papa_id.clone());
-                        }
-                        if let Some(mama_id) = dog.mama_id.as_ref() {
-                            ids.push(mama_id.clone());
-                        }
-                        return self.fetch_records(&self.db_name.as_ref().unwrap(), RecordsQuery::by_ids(ids));
-                    }
-                }
-
+            Msg::PatchRequested { id, fi, new_value } => {
+                return self.patch_record(self.db_name.as_ref().unwrap(), id, fi as u32, json!({"value": new_value}))
             }
         }
         Cmd::none().should_update_view(true)
@@ -158,12 +126,12 @@ impl Application<Msg> for App {
                     } ) }
                     <div class="paging">
                         <button class="prev" on_click=|_| { Msg::PrevPage } disabled={self.offset <= 0} > {text("< Prev page")} </button>
-                        <button class="next" on_click=|_| { Msg::NextPage } disabled={self.offset + 100 >= self.total}>{text("Next page >")}</button>
+                        <button class="next" on_click=|_| { Msg::NextPage } disabled={self.offset + 30 >= self.total}>{text("Next page >")}</button>
                     </div>
                 </div>
                 <div class="records">
-                    { for dog in &self.records {
-                        dog_view(dog.clone())
+                    { for record in &self.records {
+                        record_view(record.clone())
                     }}
                 </div>
             </main>

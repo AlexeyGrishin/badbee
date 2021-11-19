@@ -1,6 +1,6 @@
 <!DOCTYPE HTML>
 <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
-<title>Dog's viewer</title>
+<title>#BADBEE viewer</title>
 <style>
     body, input, select, option, button {
         font-size: 14pt;
@@ -24,84 +24,14 @@
     .records {
         display: flex;
         flex-wrap: wrap;
+        flex-direction: column;
     }
 
-    .dog {
-        display: grid;
-        grid-template-areas:
-            " avatar name name name"
-            " avatar gender trophys country "
-            " hierarchy hierarchy hierarchy hierarchy"
-    ;
-        grid-gap: 10px;
-
+    .record {
         margin: 10px;
-        background-color: #eeeeee;
-        padding: 10px;
-        width: 400px;
-        box-sizing: content-box;
-
-        grid-template-columns: 100px 20px auto 40px;
-        grid-template-rows: 30px 80px auto;
+        background: #eeeeee;
     }
 
-    .dog .hierarchy {
-        grid-area: hierarchy;
-    }
-
-    .dog.Male {
-        background: #dbdfff;
-    }
-
-    .dog.Female {
-        background: #ffdfdb;
-    }
-
-    .dog > img {
-        grid-area: avatar;
-        border: 2px groove white;
-    }
-
-    .dog input[name=dog_name] {
-        grid-area: name;
-        background: none;
-        border: 1px solid transparent;
-        font-weight: bold;
-    }
-
-    .dog input[name=dog_name]:hover {
-        border: 1px solid gray;
-    }
-
-    .dog input[name=dog_name]:focus {
-        background: white;
-    }
-
-    .dog .gender {
-        grid-area: gender;
-        font-weight: bold;
-        font-family: monospace;
-        font-size: 18pt;
-    }
-
-    .dog .trophys {
-        grid-area: trophys;
-    }
-
-    .dog .country {
-        grid-area: country;
-    }
-
-    .dog-simplified {
-        margin-left: 30px;
-        padding: 10px;
-        height: 35px;
-        display: flex;
-    }
-
-    .dog-simplified > * {
-        margin-right: 5px;
-    }
 </style>
 
 <body>

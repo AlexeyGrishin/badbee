@@ -7,12 +7,19 @@ edition = "2018"
 
 [lib]
 crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dev-dependencies.web-sys]
+version = "0.3"
+features = ["HtmlCanvasElement", "CanvasRenderingContext2d", "HtmlImageElement", "MouseEvent"]
 
 [dependencies]
-sauron = { version = "0.43"}#, features = ["RequestInit"] }
+sauron = { version = "0.43" }
 serde_json = "1.0.68"
 serde_derive = "1.0"
 serde = "1.0"
 log = "0.4"
 console_log = {version="0.2", features = ["color"]}
 console_error_panic_hook = { version = "0.1" }
+gloo-events = "0.1.1"
+gloo-timers = "0.2.1"

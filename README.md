@@ -23,7 +23,7 @@
 
 Build with `docker build -t badbee .`
 
-Run with specific base only `docker run -d --rm --name badbee -e DB_FILE=husky.png -p 3030:3030 -v "$pwd/db:/usr/badbee/db"  badbee`
+Run with specific base only `docker run -d --rm --name badbee -e DB_FILE=db.png -p 3030:3030 -v "$pwd/db:/usr/badbee/db"  badbee`
 
 Run with all bases: `docker run -d --rm --name badbee -p 3030:3030 -v "$pwd/db:/usr/badbee/db"  badbee`
 

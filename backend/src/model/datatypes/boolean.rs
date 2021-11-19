@@ -9,7 +9,7 @@ pub(crate) struct BooleanDataType;
 impl DataType for BooleanDataType {
 
     fn read(&self, image: &ImageView, _: &Field) -> Result<DataValue, DataError> {
-        Ok(DataValue::Boolean { value: image.get_pixel(0, 0).is_blank() })
+        Ok(DataValue::Boolean { value: !image.get_pixel(0, 0).is_blank() })
     }
 
     fn write(&self, image: &mut ImageView, _: &Field, value: DataValue) -> Result<(), DataError> {

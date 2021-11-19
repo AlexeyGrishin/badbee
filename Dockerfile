@@ -22,6 +22,15 @@ RUN cargo build --release
 
 FROM builder as client-build
 RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+WORKDIR /usr/src/badbee
+COPY dummy.rs .
+COPY ./web-client/Cargo.toml ./web-client/Cargo.toml
+RUN sed -i 's#src/lib.rs#../dummy.rs#' web-client/Cargo.toml
+WORKDIR /usr/src/badbee/web-client
+RUN wasm-pack build --out-dir ../static --target web --release
+
+
 WORKDIR /usr/src/badbee
 COPY ./web-client ./web-client
 COPY ./static ./static
