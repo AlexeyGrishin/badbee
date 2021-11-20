@@ -165,7 +165,8 @@ fn reference_view(ref_id: &str, _rec_id: &str, _field_idx: usize) -> Node<Msg> {
     node! [
         <span>
             <a href = { format!("#{}", ref_id) }>{text(ref_id)}</a>
-        </span> ]
+        </span>
+    ]
 }
 
 fn unknown_view(value: serde_json::Value, _rec_id: &str, _field_idx: usize) -> Node<Msg> {

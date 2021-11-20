@@ -23,9 +23,9 @@
 
 Build with `docker build -t badbee .`
 
-Run with specific base only `docker run -d --rm --name badbee -e DB_FILE=db.png -p 3030:3030 -v "$pwd/db:/usr/badbee/db"  badbee`
+Run with specific base `docker run -d --rm --name badbee -e DB_FILE=db.png -p 3030:3030 -v "$pwd/db:/usr/badbee/db"  badbee`
 
-Run with all bases: `docker run -d --rm --name badbee -p 3030:3030 -v "$pwd/db:/usr/badbee/db"  badbee`
+Run with specific base and bmp settings `docker run -d --rm --name badbee -e DB_FILE=db.png -e BMP_SLICE_STEP=1024 -e KEEP_IN_MEMORY_INV=4 -p 3030:3030 -v "$pwd/db:/usr/badbee/db"  badbee`
 
 ## For debug
 

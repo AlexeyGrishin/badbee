@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::{Error, Read, Seek, SeekFrom, Write};
 use std::ops::Div;
 use log::info;
+use std::env;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use image::{ColorType, RgbImage};
@@ -12,15 +13,15 @@ use crate::image::{StorableImage, SyncResponse};
 use crate::model::colors::RGB;
 use std::fmt::{Debug, Formatter};
 
-const SLICE_STEP: usize = 1024; //todo: settings
-const KEEP_IN_MEMORY_INV: usize = 2;
-
 #[derive(Debug, Clone)]
 struct BMPParams {
     width: u32,
     height: u32,
     data_offset: u32,
     data_padding: u32,        //actually u8
+
+    slice_step: usize,
+    keep_in_memory_inv: usize
 }
 
 struct BMPSlice {
@@ -123,10 +124,18 @@ impl BMPOnDiskImage {
         let width = file.read_u32::<LittleEndian>().unwrap();
         let height = file.read_u32::<LittleEndian>().unwrap();
         let data_padding = (((width * 3) as f32).div(4.0).ceil() * 4.0) as u32 - (width * 3);
-        let bmp_params = BMPParams { width, height, data_offset, data_padding };
+        let bmp_params = BMPParams {
+            width,
+            height,
+            data_offset,
+            data_padding,
+            slice_step: env::var("BMP_SLICE_STEP").unwrap_or("1024".to_string()).parse::<usize>().unwrap(),
+            keep_in_memory_inv: env::var("BMP_KEEP_IN_MEM_INV").unwrap_or("2".to_string()).parse::<usize>().unwrap()
+
+        };
         let mut slices = vec![];
-        for y in (0..height).step_by(SLICE_STEP) {
-            slices.push(RefCell::new(BMPSlice::new(y, (y + SLICE_STEP as u32).min(height), bmp_params.clone())))
+        for y in (0..height).step_by(bmp_params.slice_step) {
+            slices.push(RefCell::new(BMPSlice::new(y, (y + bmp_params.slice_step as u32).min(height), bmp_params.clone())))
         }
         Self {
             file: RefCell::new(file),
@@ -148,7 +157,7 @@ impl BMPOnDiskImage {
 impl StorableImage for BMPOnDiskImage {
     fn get_pixel(&self, x: u32, y: u32) -> RGB {
         let y = self.bmp_params.height - y - 1;
-        let idx = y as usize / SLICE_STEP;
+        let idx = y as usize / self.bmp_params.slice_step;
         let mut slice = self.slices[idx].borrow_mut();
         self.load_slice_if_needed(&mut slice);
         return slice.get_pixel(x, y);
@@ -156,7 +165,7 @@ impl StorableImage for BMPOnDiskImage {
 
     fn set_pixel(&mut self, x: u32, y: u32, rgb: &RGB) {
         let y = self.bmp_params.height - y - 1;
-        let idx = y as usize / SLICE_STEP;
+        let idx = y as usize / self.bmp_params.slice_step;
         let mut slice = self.slices[idx].borrow_mut();
         self.load_slice_if_needed(&mut slice);
         slice.set_pixel(x, y, rgb);
@@ -182,7 +191,7 @@ impl StorableImage for BMPOnDiskImage {
                 loaded += 1;
             }
         }
-        while count > 1 && loaded >= count / KEEP_IN_MEMORY_INV {
+        while count > 1 && loaded >= count / self.bmp_params.keep_in_memory_inv {
             self.slices.iter()
                 .filter(|s| (*s).borrow().is_loaded())
                 .min_by(|s1, s2| (*s1).borrow().loaded_nr.cmp(&(*s2).borrow().loaded_nr))
@@ -202,7 +211,7 @@ impl StorableImage for BMPOnDiskImage {
                 loaded += 1;
             }
         }
-        while loaded >= count / KEEP_IN_MEMORY_INV {
+        while loaded >= count / self.bmp_params.keep_in_memory_inv {
             self.slices.iter()
                 .filter(|s| (*s).borrow().is_loaded())
                 .min_by(|s1, s2| (*s1).borrow().loaded_nr.cmp(&(*s2).borrow().loaded_nr))
