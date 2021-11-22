@@ -123,7 +123,8 @@ pub fn load_model_into(model: &mut Model, image: ImageView<'_>, on_progress: imp
         for x in 1..image.width {
             if is_meta(x, y) && is_blank(x, y - 1) && is_blank(x - 1, y - 1) &&
                 is_meta(x + 1, y) && is_meta(x, y + 1) && is_blank(x + 1, y - 1) &&
-                is_blank(x - 1, y) && is_blank(x - 1, y + 1) {
+                is_blank(x - 1, y) && is_blank(x - 1, y + 1) &&
+                blocks_map.get_block(x, y).is_none()  {
                 let top_left = Vector2D { x, y };
 
                 let mut right_bottom = top_left.clone();
